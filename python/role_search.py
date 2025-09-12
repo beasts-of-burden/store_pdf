@@ -1,7 +1,6 @@
 import json
 from haystack import Document
-# from haystack.document_stores import FAISSDocumentStore
-from haystack.document_stores import InMemoryDocumentStore
+from haystack.document_stores.in_memory import InMemoryDocumentStore
 from haystack.nodes import DensePassageRetriever
 from haystack.pipelines import DocumentSearchPipeline
 
@@ -12,33 +11,33 @@ with open(r"D:\HayStack\project\rules_character.json", "r", encoding="utf-8") as
 
 # ---------- 2. 转换成 Haystack Document ----------
 docs = []
-# for item in json_data:
-#     character = item.get("character", "")
-#     rules = item.get("rules", [])
-#     for rule in rules:
-#         docs.append(Document(content=rule, meta={"character": character}))
+for item in json_data:
+    character = item.get("character", "")
+    rules = item.get("rules", [])
+    for rule in rules:
+        docs.append(Document(content=rule, meta={"character": character}))
 
-# print(f"✅ 转换完成，共 {len(docs)} 条 Document")
+print(f"✅ 转换完成，共 {len(docs)} 条 Document")
 
-# ---------- 3. 创建 DocumentStore ----------
-# document_store = FAISSDocumentStore(embedding_dim=768, faiss_index_factory_str="Flat")
+# ---------- 3. 创建 InMemory DocumentStore ----------
 document_store = InMemoryDocumentStore()
 document_store.write_documents(docs)
 
-# ---------- 4. 创建检索器 ----------
+# ---------- 4. 创建 Retriever ----------
 retriever = DensePassageRetriever(
     document_store=document_store,
     query_embedding_model="facebook/dpr-question_encoder-single-nq-base",
-    passage_embedding_model="facebook/dpr-ctx_encoder-single-nq-base"
+    passage_embedding_model="facebook/dpr-ctx_encoder-single-nq-base",
+    use_gpu=True  # 如果有 GPU，可以开，否则 False
 )
 
-# 更新索引向量
+# ---------- 5. 更新索引 ----------
 document_store.update_embeddings(retriever)
 
-# ---------- 5. 创建检索管道 ----------
+# ---------- 6. 创建管道 ----------
 pipe = DocumentSearchPipeline(retriever)
 
-# ---------- 6. 查询角色规则 ----------
+# ---------- 7. 测试查询 ----------
 query_character = "炭治郎"
 results = pipe.run(query=query_character, params={"Retriever": {"top_k": 5}})
 
