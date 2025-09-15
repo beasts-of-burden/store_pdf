@@ -1,0 +1,2 @@
+huggingface-cli download --resume-download facebook/dpr-question_encoder-single-nq-base --local-dir dpr-question_encoder-single-nq-base
+huggingface-cli download --resume-download facebook/dpr-ctx_encoder-single-nq-base --local-dir dpr-ctx_encoder-single-nq-base
