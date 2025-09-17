@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LLM Model Manager</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .model-card {
+            border-radius: 15px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+        .model-card:hover {
+            transform: translateY(-5px);
+        }
+        .btn-custom {
+            background: linear-gradient(45deg, #6a11cb 0%, #2575fc 100%);
+            border: none;
+            transition: all 0.3s ease;
+        }
+        .btn-custom:hover {
+            filter: brightness(1.2);
+            transform: scale(1.05);
+        }
+        #unloadBtn:hover {
+            filter: brightness(0.8);
+            transform: scale(1.05);
+        }
+        
+        /* 规则显示区域样式 */
+        .rules-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .rule-item {
+            transition: all 0.2s ease;
+        }
+        .rule-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 2px 4px rgba(23, 162, 184, 0.2);
+        }
+        .rule-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+        .rule-index {
+            color: #17a2b8;
+        }
+        .rule-similarity {
+            font-size: 0.8em;
+            color: #6c757d;
+            background: rgba(255, 255, 255, 0.7);
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+        .rule-content {
+            font-size: 0.95em;
+            line-height: 1.5;
+            color: #333;
+        }
+        
+        /* 对比显示区域样式 */
+        #originalOutput,
+        #ragOutput {
+            transition: all 0.3s ease;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        #originalOutput {
+            border-left: 4px solid #ffd700;
+        }
+        #ragOutput {
+            border-left: 4px solid #28a745;
+        }
+        
+        /* 滚动条样式 */
+        #rulesDisplay::-webkit-scrollbar,
+        #log::-webkit-scrollbar {
+            width: 8px;
+        }
+        #rulesDisplay::-webkit-scrollbar-track,
+        #log::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        #rulesDisplay::-webkit-scrollbar-thumb,
+        #log::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+        #rulesDisplay::-webkit-scrollbar-thumb:hover,
+        #log::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card model-card">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="mb-0">LLM Model Manager</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="modelPath" class="form-label">Model Path</label>
+                            <input type="text" class="form-control" id="modelPath" placeholder="e.g. /work/models/meta-llama/Llama-2-7b-hf">
+                        </div>
+                        <div class="mb-3">
+                            <label for="rulesPath" class="form-label">Rules File Path</label>
+                            <input type="text" class="form-control" id="rulesPath" placeholder="e.g. /path/to/rules.json">
+                        </div>
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button id="loadBtn" class="btn btn-custom text-white me-md-2">
+  <span id="loadSpinner" class="spinner-border spinner-border-sm d-none" role="status" aria-hidden="true"></span>
+  Load Model
+</button>
+                            <button id="loadRulesBtn" class="btn btn-primary text-white me-md-2">Load Rules</button>
+                            <button id="unloadBtn" class="btn btn-danger">Unload Model</button>
+                        </div>
+                        <div class="mt-4">
+                            <div class="card">
+                                <div class="card-header">Input Text</div>
+                                <div class="card-body">
+                                    <textarea id="inputText" class="form-control mb-3" rows="3" placeholder="Enter text for prediction"></textarea>
+                                    <button id="predictBtn" class="btn btn-custom text-white">Predict</button>
+                                    <button id="clearHistoryBtn" class="btn btn-secondary ms-2">Clear History</button>
+                                </div>
+                            </div>
+                            
+                            <!-- 对比显示区域 -->
+                            <div class="card mt-3">
+                                <div class="card-header bg-primary text-white">Model Output Comparison</div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <!-- 原始回答 -->
+                                        <div class="col-md-6">
+                                            <div class="mb-2">
+                                                <span class="badge bg-warning text-dark">Without RAG</span>
+                                            </div>
+                                            <div id="originalOutput" class="p-3" style="min-height: 200px; border: 1px solid #ffd700; border-radius: 5px; background-color: #fff8e1;"></div>
+                                        </div>
+                                        <!-- RAG增强回答 -->
+                                        <div class="col-md-6">
+                                            <div class="mb-2">
+                                                <span class="badge bg-success">With RAG</span>
+                                            </div>
+                                            <div id="ragOutput" class="p-3" style="min-height: 200px; border: 1px solid #28a745; border-radius: 5px; background-color: #d4edda;"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 检索到的规则显示区域 -->
+                            <div class="card mt-3">
+                                <div class="card-header bg-info text-white">Retrieved Rules</div>
+                                <div class="card-body">
+                                    <div id="rulesDisplay" class="p-3" style="min-height: 150px; border: 1px solid #17a2b8; border-radius: 5px; background-color: #d1ecf1; font-family: monospace; overflow-y: auto;">
+                                        <!-- 规则将在这里显示 -->
+                                        <em>No rules loaded or retrieved yet</em>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 日志区域 -->
+                            <div class="card mt-3">
+                                <div class="card-header">Log Messages</div>
+                                <div class="card-body">
+                                    <div id="log" class="p-2" style="min-height: 100px; border: 1px solid #eee; border-radius: 5px; font-family: monospace; overflow-y: auto;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 全局历史记录变量
+        let chatHistory = [];
+        
+        // 加载模型
+        document.getElementById('loadBtn').addEventListener('click', async () => {
+            const loadBtn = document.getElementById('loadBtn');
+            const spinner = document.getElementById('loadSpinner');
+            
+            loadBtn.disabled = true;
+            spinner.classList.remove('d-none');
+            
+            const modelPath = document.getElementById('modelPath').value;
+            const response = await fetch('/load_model', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({model_path: modelPath})
+            });
+            const result = await response.json();
+            
+            // 清空历史记录
+            chatHistory = [];
+            document.getElementById('originalOutput').innerText = '';
+            document.getElementById('ragOutput').innerText = '';
+            document.getElementById('rulesDisplay').innerHTML = '<em>No rules loaded or retrieved yet</em>';
+            
+            if (result.log) {
+                document.getElementById('log').innerText += result.log + '\n';
+            }
+            
+            loadBtn.disabled = false;
+            spinner.classList.add('d-none');
+        });
+
+        // 加载规则文件
+        document.getElementById('loadRulesBtn').addEventListener('click', async () => {
+            const rulesBtn = document.getElementById('loadRulesBtn');
+            const rulesPath = document.getElementById('rulesPath').value;
+            
+            if (!rulesPath.trim()) {
+                document.getElementById('log').innerText += '请输入规则文件路径\n';
+                return;
+            }
+            
+            rulesBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/load_rules', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({rules_path: rulesPath})
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    document.getElementById('log').innerText += result.log + '\n';
+                    document.getElementById('rulesDisplay').innerText = `已加载规则文件: ${rulesPath}`;
+                } else {
+                    document.getElementById('log').innerText += '加载规则失败: ' + result.message + '\n';
+                }
+            } catch (error) {
+                document.getElementById('log').innerText += '请求异常: ' + error.message + '\n';
+            } finally {
+                rulesBtn.disabled = false;
+            }
+        });
+
+        // 卸载模型
+        document.getElementById('unloadBtn').addEventListener('click', async () => {
+            const unloadBtn = document.getElementById('unloadBtn');
+            const spinner = document.createElement('span');
+            spinner.className = 'spinner-border spinner-border-sm me-1';
+            spinner.role = 'status';
+            spinner.setAttribute('aria-hidden', 'true');
+            
+            try {
+                unloadBtn.disabled = true;
+                unloadBtn.insertBefore(spinner, unloadBtn.firstChild);
+                
+                const response = await fetch('/unload_model', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    throw new Error(`Expected JSON but got: ${text.substring(0, 100)}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.status === 'success' || result.status === 'unloading') {
+                    // 清空历史记录和显示
+                    chatHistory = [];
+                    document.getElementById('originalOutput').innerText = '';
+                    document.getElementById('ragOutput').innerText = '';
+                    document.getElementById('rulesDisplay').innerHTML = '<em>No rules loaded or retrieved yet</em>';
+                    document.getElementById('log').innerText += result.log + '\n';
+                } else {
+                    document.getElementById('log').innerText += '卸载失败: ' + result.message + '\n';
+                }
+            } catch (error) {
+                document.getElementById('log').innerText += '请求异常: ' + error.message + '\n';
+            } finally {
+                unloadBtn.disabled = false;
+                if (spinner.parentNode === unloadBtn) {
+                    unloadBtn.removeChild(spinner);
+                }
+            }
+        });
+
+        // 清空历史
+        document.getElementById('clearHistoryBtn').addEventListener('click', () => {
+            document.getElementById('inputText').value = '';
+            document.getElementById('originalOutput').innerText = '';
+            document.getElementById('ragOutput').innerText = '';
+            document.getElementById('rulesDisplay').innerHTML = '<em>No rules loaded or retrieved yet</em>';
+            chatHistory = [];
+        });
+
+        // 预测功能，显示对比结果
+        document.getElementById('predictBtn').addEventListener('click', async () => {
+            const inputText = document.getElementById('inputText').value;
+            if (!inputText.trim()) {
+                document.getElementById('ragOutput').innerText = 'Please enter some text for prediction';
+                return;
+            }
+            
+            // 禁用按钮防止重复提交
+            const predictBtn = document.getElementById('predictBtn');
+            predictBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({input_text: inputText, history: chatHistory})
+                });
+                
+                const result = await response.json();
+                
+                if (result.status === 'success') {
+                    // 更新历史记录
+                    if (result.history) {
+                        chatHistory = result.history;
+                    }
+                    
+                    // 显示带RAG的回答
+                    document.getElementById('ragOutput').innerText = result.prediction || '';
+                    
+                    // 显示不带RAG的回答
+                    document.getElementById('originalOutput').innerText = result.original_prediction || '';
+                    
+                    // 显示检索到的规则
+                    if (result.retrieved_rules && result.retrieved_rules.length > 0) {
+                        let rulesHtml = '<div class="rules-list">';
+                        result.retrieved_rules.forEach((rule, index) => {
+                            rulesHtml += `
+                                <div class="rule-item mb-2 p-2 bg-white rounded border border-info">
+                                    <div class="rule-header">
+                                        <span class="rule-index">Rule ${index + 1}</span>
+                                        <span class="rule-similarity">Similarity: ${(rule.similarity * 100).toFixed(2)}%</span>
+                                    </div>
+                                    <div class="rule-content mt-1">${rule.text}</div>
+                                </div>
+                            `;
+                        });
+                        rulesHtml += '</div>';
+                        document.getElementById('rulesDisplay').innerHTML = rulesHtml;
+                    } else {
+                        document.getElementById('rulesDisplay').innerHTML = '<em>No relevant rules retrieved</em>';
+                    }
+                    
+                    if (result.log) {
+                        document.getElementById('log').innerText += result.log + '\n';
+                        // 自动滚动到最新日志
+                        const logElement = document.getElementById('log');
+                        logElement.scrollTop = logElement.scrollHeight;
+                    }
+                } else {
+                    document.getElementById('ragOutput').innerText = result.message || '预测失败';
+                    if (result.log) {
+                        document.getElementById('log').innerText += result.log + '\n';
+                    }
+                }
+            } catch (error) {
+                document.getElementById('ragOutput').innerText = '请求异常: ' + error.message;
+                document.getElementById('log').innerText += '请求异常: ' + error.message + '\n';
+            } finally {
+                predictBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
